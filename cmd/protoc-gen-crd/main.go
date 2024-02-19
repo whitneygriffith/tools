@@ -85,14 +85,14 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 			return nil, fmt.Errorf("unable to find %s", request.FileToGenerate)
 		} else if strings.HasSuffix(fd.GetPackage(), "v1") {
 			standardChannelFilesToGen[fd] = struct{}{}
-			log.Println("it is standard: ", fd)
+			log.Println("This is a standard channel API: ", fd)
 		} else if strings.Contains(fd.GetPackage(), "v1alpha") {
 			// v1alpha1, v1alpha2, etc is considered experimental
 			experimentalChannelFilesToGen[fd] = struct{}{}
-			log.Println("it is experimental: ", fd)
+			log.Println("This is an experimental channel API: ", fd)
 		}
 		// Legacy channel will have all files that are in standard and experimental
-		log.Println("it is legacy: ", fd)
+		log.Println("This is also added to legacy channel: ", fd)
 		legacyChannelFilesToGen[fd] = struct{}{}
 	}
 
