@@ -156,7 +156,7 @@ func buildCustomSchemasByMessageName() map[string]*apiext.JSONSchemaProps {
 	return schemasByMessageName
 }
 
-func (g *openapiGenerator) generateOutput(filesToGen map[*protomodel.FileDescriptor]bool, fileName string) (*plugin.CodeGeneratorResponse, error) {
+func (g *openapiGenerator) generateOutput(filesToGen map[*protomodel.FileDescriptor]struct{}, fileName string) (*plugin.CodeGeneratorResponse, error) {
 	response := plugin.CodeGeneratorResponse{}
 
 	g.generateSingleFileOutput(filesToGen, fileName, &response)
@@ -184,15 +184,13 @@ func (g *openapiGenerator) getFileContents(
 	}
 }
 
-func (g *openapiGenerator) generateSingleFileOutput(filesToGen map[*protomodel.FileDescriptor]bool, fileName string, response *plugin.CodeGeneratorResponse) {
+func (g *openapiGenerator) generateSingleFileOutput(filesToGen map[*protomodel.FileDescriptor]struct{}, fileName string, response *plugin.CodeGeneratorResponse) {
 	messages := make(map[string]*protomodel.MessageDescriptor)
 	enums := make(map[string]*protomodel.EnumDescriptor)
 	descriptions := make(map[string]string)
 
-	for file, ok := range filesToGen {
-		if ok {
-			g.getFileContents(file, messages, enums, descriptions)
-		}
+	for file := range filesToGen {
+		g.getFileContents(file, messages, enums, descriptions)
 	}
 
 	rf := g.generateFile(fileName, messages, enums, descriptions)

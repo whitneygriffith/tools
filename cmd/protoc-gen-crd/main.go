@@ -75,29 +75,24 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 
 	m := protomodel.NewModel(request, false)
 
-	legacyChannelFilesToGen := make(map[*protomodel.FileDescriptor]bool)
-	standardChannelFilesToGen := make(map[*protomodel.FileDescriptor]bool)
-	experimentalChannelFilesToGen := make(map[*protomodel.FileDescriptor]bool)
+	legacyChannelFilesToGen := make(map[*protomodel.FileDescriptor]struct{})
+	standardChannelFilesToGen := make(map[*protomodel.FileDescriptor]struct{})
+	experimentalChannelFilesToGen := make(map[*protomodel.FileDescriptor]struct{})
 
 	for _, fileName := range request.FileToGenerate {
 		fd := m.AllFilesByName[fileName]
 		if fd == nil {
 			return nil, fmt.Errorf("unable to find %s", request.FileToGenerate)
 		} else if strings.HasSuffix(fd.GetPackage(), "v1") {
-			standardChannelFilesToGen[fd] = true
+			standardChannelFilesToGen[fd] = struct{}{}
 			log.Println("it is standard: ", fd)
 		} else if strings.HasSuffix(fd.GetPackage(), "v1alpha1") {
-			experimentalChannelFilesToGen[fd] = true
+			experimentalChannelFilesToGen[fd] = struct{}{}
 			log.Println("it is experimental: ", fd)
 		}
 		// Legacy channel will have all files that are in standard and experimental
-		legacyChannelFilesToGen[fd] = true
+		legacyChannelFilesToGen[fd] = struct{}{}
 	}
-
-	channelOutput := make(map[string]map[*protomodel.FileDescriptor]bool)
-	channelOutput["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
-	channelOutput["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
-	channelOutput["kubernetes/exerimental.gen.yaml"] = experimentalChannelFilesToGen
 
 	descriptionConfiguration := &DescriptionConfiguration{
 		IncludeDescriptionInSchema: includeDescription,
@@ -108,6 +103,10 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 		descriptionConfiguration,
 		enumAsIntOrString)
 
+	channelOutput := make(map[string]map[*protomodel.FileDescriptor]struct{})
+	channelOutput["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
+	channelOutput["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
+	channelOutput["kubernetes/exerimental.gen.yaml"] = experimentalChannelFilesToGen
 	for outputFileName, files := range channelOutput {
 		// TODO (whgriffi): fix the return to generate multiple files. At this time only the first file in the list is returned
 		return g.generateOutput(files, outputFileName)
