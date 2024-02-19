@@ -17,12 +17,18 @@ package main
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
 
 	"istio.io/tools/cmd/protoc-gen-crd/pkg/protocgen"
 	"istio.io/tools/pkg/protomodel"
+)
+
+var (
+	experimentalRegex = regexp.MustCompile(`v[0-9]+(alpha|beta)[0-9]+$`)
+	standardRegex     = regexp.MustCompile(`v[0-9]+$`)
 )
 
 // Breaks the comma-separated list of key=value pairs
@@ -83,29 +89,31 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 		fd := m.AllFilesByName[fileName]
 		if fd == nil {
 			return nil, fmt.Errorf("unable to find %s", request.FileToGenerate)
-		} else if strings.HasSuffix(fd.GetPackage(), "v1") {
-			standardChannelFilesToGen[fd] = struct{}{}
-			log.Println("This is a standard channel API: ", fd)
-		} else if strings.Contains(fd.GetPackage(), "v1alpha") {
-			// v1alpha1, v1alpha2, etc is considered experimental
-			experimentalChannelFilesToGen[fd] = struct{}{}
-			log.Println("This is an experimental channel API: ", fd)
+		}
+		if standardRegex.MatchString(fd.GetPackage()) {
+			standardChannelFilesToGen[fd] = true
+			log.Println("it is standard: ", fd)
+		} else if experimentalRegex.MatchString(fd.GetPackage()) {
+			experimentalChannelFilesToGen[fd] = true
+			log.Println("it is experimental: ", fd)
 		}
 		// Legacy channel will have all files that are in standard and experimental
 		log.Println("This is also added to legacy channel: ", fd)
 		legacyChannelFilesToGen[fd] = struct{}{}
 	}
 
+	channelOutput := make(map[string]map[*protomodel.FileDescriptor]bool)
+	channelOutput["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
+	channelOutput["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
+	channelOutput["kubernetes/experimental.gen.yaml"] = experimentalChannelFilesToGen
+
 	descriptionConfiguration := &DescriptionConfiguration{
 		IncludeDescriptionInSchema: includeDescription,
-	}
-
 	g := newOpenAPIGenerator(
 		m,
 		descriptionConfiguration,
 		enumAsIntOrString)
 
-	channels := make(map[string]map[*protomodel.FileDescriptor]struct{})
 	channels["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
 	channels["kubernetes/experimental.gen.yaml"] = experimentalChannelFilesToGen
 	channels["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
