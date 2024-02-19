@@ -86,7 +86,8 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 		} else if strings.HasSuffix(fd.GetPackage(), "v1") {
 			standardChannelFilesToGen[fd] = struct{}{}
 			log.Println("it is standard: ", fd)
-		} else if strings.HasSuffix(fd.GetPackage(), "v1alpha1") {
+		} else if strings.Contains(fd.GetPackage(), "v1alpha") {
+			// v1alpha1, v1alpha2, etc is considered experimental
 			experimentalChannelFilesToGen[fd] = struct{}{}
 			log.Println("it is experimental: ", fd)
 		}
