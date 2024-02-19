@@ -92,6 +92,7 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 			log.Println("it is experimental: ", fd)
 		}
 		// Legacy channel will have all files that are in standard and experimental
+		log.Println("it is legacy: ", fd)
 		legacyChannelFilesToGen[fd] = struct{}{}
 	}
 
@@ -104,29 +105,13 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 		descriptionConfiguration,
 		enumAsIntOrString)
 
-	channelOutput := make(map[string]map[*protomodel.FileDescriptor]struct{})
-	channelOutput["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
-	channelOutput["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
-	channelOutput["kubernetes/exerimental.gen.yaml"] = experimentalChannelFilesToGen
-	for outputFileName, files := range channelOutput {
-		// TODO (whgriffi): fix the return to generate multiple files. At this time only the first file in the list is returned
-		return g.generateOutput(files, outputFileName)
-	}
-
-	return nil, nil
+	channels := make(map[string]map[*protomodel.FileDescriptor]struct{})
+	channels["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
+	channels["kubernetes/exerimental.gen.yaml"] = experimentalChannelFilesToGen
+	channels["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
+	return g.generateOutput(channels)
 }
 
 func main() {
-	// TODO(whgriffi): may need to loop through the various channels here to generate multiple files as files aren't outputted by just running g.generateOutput(files, outputFileName)
-	// The protocgen.Generate function is part of the protoc-gen-go plugin for the Protocol Buffers compiler (protoc).
-	// This function handles the communication with protoc, including reading the CodeGeneratorRequest from protoc and writing the CodeGeneratorResponse back to protoc.
-	// channels = make(map[string][]string) // map of channel name to acceptable API versions
-	// channels["legacy"] = []string{"v1alpha1", "v1beta1", "v1"}
-	// channels["standard"] = []string{"v1beta1", "v1"}
-	// channels["experimental"] = []string{"v1alpha1"}
-
-	// for _, channel := range channels {
-
-	// }
 	protocgen.Generate(generate)
 }

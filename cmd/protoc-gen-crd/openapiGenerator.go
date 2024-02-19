@@ -156,10 +156,10 @@ func buildCustomSchemasByMessageName() map[string]*apiext.JSONSchemaProps {
 	return schemasByMessageName
 }
 
-func (g *openapiGenerator) generateOutput(filesToGen map[*protomodel.FileDescriptor]struct{}, fileName string) (*plugin.CodeGeneratorResponse, error) {
+func (g *openapiGenerator) generateOutput(channels map[string]map[*protomodel.FileDescriptor]struct{}) (*plugin.CodeGeneratorResponse, error) {
 	response := plugin.CodeGeneratorResponse{}
 
-	g.generateSingleFileOutput(filesToGen, fileName, &response)
+	g.generateSingleFileOutputPerChannel(channels, &response)
 
 	return &response, nil
 }
@@ -184,17 +184,22 @@ func (g *openapiGenerator) getFileContents(
 	}
 }
 
-func (g *openapiGenerator) generateSingleFileOutput(filesToGen map[*protomodel.FileDescriptor]struct{}, fileName string, response *plugin.CodeGeneratorResponse) {
-	messages := make(map[string]*protomodel.MessageDescriptor)
-	enums := make(map[string]*protomodel.EnumDescriptor)
-	descriptions := make(map[string]string)
+func (g *openapiGenerator) generateSingleFileOutputPerChannel(channels map[string]map[*protomodel.FileDescriptor]struct{}, response *plugin.CodeGeneratorResponse) {
+	for channel := range channels {
+		messages := make(map[string]*protomodel.MessageDescriptor)
+		enums := make(map[string]*protomodel.EnumDescriptor)
+		descriptions := make(map[string]string)
 
-	for file := range filesToGen {
-		g.getFileContents(file, messages, enums, descriptions)
+		outputFileName := channel
+		filesToGen := channels[channel]
+
+		log.Println("Generating response file for channel: ", channel)
+		for file := range filesToGen {
+			g.getFileContents(file, messages, enums, descriptions)
+		}
+		rf := g.generateFile(outputFileName, messages, enums, descriptions)
+		response.File = append(response.File, &rf)
 	}
-
-	rf := g.generateFile(fileName, messages, enums, descriptions)
-	response.File = []*plugin.CodeGeneratorResponse_File{&rf}
 }
 
 const (
