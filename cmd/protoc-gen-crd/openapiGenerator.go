@@ -156,10 +156,10 @@ func buildCustomSchemasByMessageName() map[string]*apiext.JSONSchemaProps {
 	return schemasByMessageName
 }
 
-func (g *openapiGenerator) generateOutput(filesToGen map[*protomodel.FileDescriptor]bool) (*plugin.CodeGeneratorResponse, error) {
+func (g *openapiGenerator) generateOutput(filesToGen map[*protomodel.FileDescriptor]bool, fileName string) (*plugin.CodeGeneratorResponse, error) {
 	response := plugin.CodeGeneratorResponse{}
 
-	g.generateSingleFileOutput(filesToGen, &response)
+	g.generateSingleFileOutput(filesToGen, fileName, &response)
 
 	return &response, nil
 }
@@ -184,7 +184,7 @@ func (g *openapiGenerator) getFileContents(
 	}
 }
 
-func (g *openapiGenerator) generateSingleFileOutput(filesToGen map[*protomodel.FileDescriptor]bool, response *plugin.CodeGeneratorResponse) {
+func (g *openapiGenerator) generateSingleFileOutput(filesToGen map[*protomodel.FileDescriptor]bool, fileName string, response *plugin.CodeGeneratorResponse) {
 	messages := make(map[string]*protomodel.MessageDescriptor)
 	enums := make(map[string]*protomodel.EnumDescriptor)
 	descriptions := make(map[string]string)
@@ -195,7 +195,7 @@ func (g *openapiGenerator) generateSingleFileOutput(filesToGen map[*protomodel.F
 		}
 	}
 
-	rf := g.generateFile("kubernetes/customresourcedefinitions.gen.yaml", messages, enums, descriptions)
+	rf := g.generateFile(fileName, messages, enums, descriptions)
 	response.File = []*plugin.CodeGeneratorResponse_File{&rf}
 }
 

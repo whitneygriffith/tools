@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
@@ -74,14 +75,29 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 
 	m := protomodel.NewModel(request, false)
 
-	filesToGen := make(map[*protomodel.FileDescriptor]bool)
+	legacyChannelFilesToGen := make(map[*protomodel.FileDescriptor]bool)
+	standardChannelFilesToGen := make(map[*protomodel.FileDescriptor]bool)
+	experimentalChannelFilesToGen := make(map[*protomodel.FileDescriptor]bool)
+
 	for _, fileName := range request.FileToGenerate {
 		fd := m.AllFilesByName[fileName]
 		if fd == nil {
 			return nil, fmt.Errorf("unable to find %s", request.FileToGenerate)
+		} else if strings.HasSuffix(fd.GetPackage(), "v1") {
+			standardChannelFilesToGen[fd] = true
+			log.Println("it is standard: ", fd)
+		} else if strings.HasSuffix(fd.GetPackage(), "v1alpha1") {
+			experimentalChannelFilesToGen[fd] = true
+			log.Println("it is experimental: ", fd)
 		}
-		filesToGen[fd] = true
+		// Legacy channel will have all files that are in standard and experimental
+		legacyChannelFilesToGen[fd] = true
 	}
+
+	channelOutput := make(map[string]map[*protomodel.FileDescriptor]bool)
+	channelOutput["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
+	channelOutput["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
+	channelOutput["kubernetes/exerimental.gen.yaml"] = experimentalChannelFilesToGen
 
 	descriptionConfiguration := &DescriptionConfiguration{
 		IncludeDescriptionInSchema: includeDescription,
@@ -91,9 +107,26 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 		m,
 		descriptionConfiguration,
 		enumAsIntOrString)
-	return g.generateOutput(filesToGen)
+
+	for outputFileName, files := range channelOutput {
+		// TODO (whgriffi): fix the return to generate multiple files. At this time only the first file in the list is returned
+		return g.generateOutput(files, outputFileName)
+	}
+
+	return nil, nil
 }
 
 func main() {
+	// TODO(whgriffi): may need to loop through the various channels here to generate multiple files as files aren't outputted by just running g.generateOutput(files, outputFileName)
+	// The protocgen.Generate function is part of the protoc-gen-go plugin for the Protocol Buffers compiler (protoc).
+	// This function handles the communication with protoc, including reading the CodeGeneratorRequest from protoc and writing the CodeGeneratorResponse back to protoc.
+	// channels = make(map[string][]string) // map of channel name to acceptable API versions
+	// channels["legacy"] = []string{"v1alpha1", "v1beta1", "v1"}
+	// channels["standard"] = []string{"v1beta1", "v1"}
+	// channels["experimental"] = []string{"v1alpha1"}
+
+	// for _, channel := range channels {
+
+	// }
 	protocgen.Generate(generate)
 }
