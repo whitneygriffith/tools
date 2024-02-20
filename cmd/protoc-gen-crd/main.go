@@ -16,8 +16,6 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"regexp"
 	"strings"
 
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
@@ -26,9 +24,10 @@ import (
 	"istio.io/tools/pkg/protomodel"
 )
 
-var (
-	experimentalRegex = regexp.MustCompile(`v[0-9]+(alpha|beta)[0-9]+$`)
-	standardRegex     = regexp.MustCompile(`v[0-9]+$`)
+const (
+	standardChannelFileName     = "kubernetes/standard.gen.yaml"
+	experimentalChannelFileName = "kubernetes/experimental.gen.yaml"
+	legacyChannelFileName       = "kubernetes/legacy.gen.yaml"
 )
 
 // Breaks the comma-separated list of key=value pairs
@@ -53,6 +52,11 @@ func extractParams(parameter string) map[string]string {
 func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, error) {
 	includeDescription := true
 	enumAsIntOrString := false
+	type genMetadata struct {
+		shouldGen           bool
+		includeExperimental bool
+		fds                 []*protomodel.FileDescriptor
+	}
 
 	p := extractParams(request.GetParameter())
 	for k, v := range p {
@@ -80,44 +84,59 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 	}
 
 	m := protomodel.NewModel(request, false)
-
-	legacyChannelFilesToGen := make(map[*protomodel.FileDescriptor]struct{})
-	standardChannelFilesToGen := make(map[*protomodel.FileDescriptor]struct{})
-	experimentalChannelFilesToGen := make(map[*protomodel.FileDescriptor]struct{})
+	channelOutput := map[string]*genMetadata{
+		standardChannelFileName: {
+			shouldGen:           true,
+			includeExperimental: false,
+			fds:                 make([]*protomodel.FileDescriptor, 0),
+		},
+		experimentalChannelFileName: {
+			shouldGen:           true,
+			includeExperimental: true,
+			fds:                 make([]*protomodel.FileDescriptor, 0),
+		},
+		legacyChannelFileName: {
+			shouldGen:           true,
+			includeExperimental: true,
+			fds:                 make([]*protomodel.FileDescriptor, 0),
+		},
+	}
 
 	for _, fileName := range request.FileToGenerate {
 		fd := m.AllFilesByName[fileName]
 		if fd == nil {
 			return nil, fmt.Errorf("unable to find %s", request.FileToGenerate)
 		}
-		if standardRegex.MatchString(fd.GetPackage()) {
-			standardChannelFilesToGen[fd] = true
-			log.Println("it is standard: ", fd)
-		} else if experimentalRegex.MatchString(fd.GetPackage()) {
-			experimentalChannelFilesToGen[fd] = true
-			log.Println("it is experimental: ", fd)
-		}
-		// Legacy channel will have all files that are in standard and experimental
-		log.Println("This is also added to legacy channel: ", fd)
-		legacyChannelFilesToGen[fd] = struct{}{}
-	}
 
-	channelOutput := make(map[string]map[*protomodel.FileDescriptor]bool)
-	channelOutput["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
-	channelOutput["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
-	channelOutput["kubernetes/experimental.gen.yaml"] = experimentalChannelFilesToGen
+		// We'll later remove the files from the standard channel that are experimental
+		channelOutput[standardChannelFileName].fds = append(channelOutput[standardChannelFileName].fds, fd)
+		channelOutput[experimentalChannelFileName].fds = append(channelOutput[experimentalChannelFileName].fds, fd)
+		// Legacy channel will have all files that are in standard and experimental
+		channelOutput[legacyChannelFileName].fds = append(channelOutput[legacyChannelFileName].fds, fd)
+	}
 
 	descriptionConfiguration := &DescriptionConfiguration{
 		IncludeDescriptionInSchema: includeDescription,
-	g := newOpenAPIGenerator(
-		m,
-		descriptionConfiguration,
-		enumAsIntOrString)
+	}
 
-	channels["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
-	channels["kubernetes/experimental.gen.yaml"] = experimentalChannelFilesToGen
-	channels["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
-	return g.generateOutput(channels)
+	response := plugin.CodeGeneratorResponse{}
+	for outputFileName, meta := range channelOutput {
+		meta := meta
+		g := newOpenAPIGenerator(
+			m,
+			descriptionConfiguration,
+			enumAsIntOrString,
+			meta.includeExperimental,
+		)
+		filesToGen := map[*protomodel.FileDescriptor]bool{}
+		for _, fd := range meta.fds {
+			filesToGen[fd] = meta.shouldGen
+		}
+		rf := g.generateSingleFileOutput(filesToGen, outputFileName, meta.includeExperimental)
+		response.File = append(response.File, &rf)
+	}
+
+	return &response, nil
 }
 
 func main() {
