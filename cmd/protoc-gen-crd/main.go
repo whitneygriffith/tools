@@ -107,7 +107,7 @@ func generate(request *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorRespon
 
 	channels := make(map[string]map[*protomodel.FileDescriptor]struct{})
 	channels["kubernetes/legacy.gen.yaml"] = legacyChannelFilesToGen
-	channels["kubernetes/exerimental.gen.yaml"] = experimentalChannelFilesToGen
+	channels["kubernetes/experimental.gen.yaml"] = experimentalChannelFilesToGen
 	channels["kubernetes/standard.gen.yaml"] = standardChannelFilesToGen
 	return g.generateOutput(channels)
 }
